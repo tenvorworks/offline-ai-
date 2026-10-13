@@ -66,7 +66,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // TODO: Yahan asli offline AI model (Gemma / Llama) jodna hai.
   Future<String> getAIReply(String userText) async {
     await Future.delayed(const Duration(milliseconds: 1200));
-    return 'Tumne pucha: "$userText"\n\n(Yahan offline AI model ka jawab aayega)';
+    return 'Tumne pucha: "$userText" - (Yahan offline AI model ka jawab aayega)';
   }
 
   Future<void> _send([String? preset]) async {
@@ -140,9 +140,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _inputBar(s),
       ]),
     );
-  }
-
-  Widget _welcome(ColorScheme s) {
+  }Widget _welcome(ColorScheme s) {
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -159,4 +157,177 @@ class _ChatScreenState extends State<ChatScreen> {
           const Text('Namaste! 👋',
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('Main bina internet ke chalta hoon.\nKuch bhi p
+          Text('Main bina internet ke chalta hoon. Kuch bhi pucho!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: s.onSurfaceVariant, height: 1.4)),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: _suggestions
+                .map((q) => ActionChip(label: Text(q), onPressed: () => _send(q)))
+                .toList(),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _chatList(ColorScheme s) {
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      itemCount: _messages.length + (_thinking ? 1 : 0),
+      itemBuilder: (context, i) {
+        if (i == _messages.length) return _bubble(s, null);
+        return _bubble(s, _messages[i]);
+      },
+    );
+  }
+
+  Widget _bubble(ColorScheme s, Message? m) {
+    final isUser = m?.isUser ?? false;
+    final maxW = MediaQuery.of(context).size.width * 0.75;
+    final content = Container(
+      constraints: BoxConstraints(maxWidth: maxW),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+      decoration: BoxDecoration(
+        gradient: isUser ? LinearGradient(colors: [s.primary, s.tertiary]) : null,
+        color: isUser ? null : s.surfaceContainerHighest,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(18),
+          topRight: const Radius.circular(18),
+          bottomLeft: Radius.circular(isUser ? 18 : 4),
+          bottomRight: Radius.circular(isUser ? 4 : 18),
+        ),
+      ),
+      child: m == null
+          ? const Padding(padding: EdgeInsets.symmetric(vertical: 6), child: TypingDots())
+          : Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(m.text,
+                  style: TextStyle(
+                      fontSize: 15,
+                      height: 1.35,
+                      color: isUser ? s.onPrimary : s.onSurface)),
+              const SizedBox(height: 4),
+              Text(_fmt(m.time),
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: (isUser ? s.onPrimary : s.onSurfaceVariant)
+                          .withOpacity(0.7))),
+            ]),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isUser) ...[
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: s.primary,
+              child: Icon(Icons.auto_awesome, size: 14, color: s.onPrimary),
+            ),
+            const SizedBox(width: 8),
+          ],
+          GestureDetector(
+            onLongPress: m == null
+                ? null
+                : () {
+                    Clipboard.setData(ClipboardData(text: m.text));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Copy ho gaya ✅'),
+                          duration: Duration(seconds: 1)),
+                    );
+                  },
+            child: content,
+          ),
+        ],
+      ),
+    );
+  }Widget _inputBar(ColorScheme s) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              minLines: 1,
+              maxLines: 4,
+              textInputAction: TextInputAction.send,
+              onSubmitted: (_) => _send(),
+              decoration: InputDecoration(
+                hintText: 'Message likho...',
+                filled: true,
+                fillColor: s.surfaceContainerHighest,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(26),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filled(
+            iconSize: 24,
+            onPressed: _thinking ? null : () => _send(),
+            icon: const Icon(Icons.arrow_upward),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+}
+
+class TypingDots extends StatefulWidget {
+  const TypingDots({super.key});
+  @override
+  State<TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }@override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.onSurface;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(3, (i) {
+          final t = (_c.value - i * 0.2) % 1.0;
+          final o = 0.3 + 0.7 * (t < 0.5 ? t * 2 : (1 - t) * 2);
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+                color: color.withOpacity(o), shape: BoxShape.circle),
+          );
+        }),
+      ),
+    );
+  }
+}
